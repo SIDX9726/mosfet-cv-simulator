@@ -5,6 +5,9 @@ import { ReactFlow, Background, Controls, addEdge, applyNodeChanges, applyEdgeCh
 import '@xyflow/react/dist/style.css';
 import './App.css';
 
+
+// Replace http://localhost:8000 with your new Railway URL
+const API_URL = "https://mosfet-cv-simulator-production.up.railway.app";
 const METALS = { "Aluminum (Al)": 4.1, "Titanium Nitride (TiN)": 4.5, "Gold (Au)": 5.1, "Platinum (Pt)": 5.65, "p+ Polysilicon": 5.2 };
 const INSULATORS = { "Silicon Dioxide (SiO2)": 3.9, "Aluminum Oxide (Al2O3)": 9.0, "Hafnium Oxide (HfO2)": 25.0 };
 const SUBSTRATES =["p-type Silicon", "n-type Silicon"];
