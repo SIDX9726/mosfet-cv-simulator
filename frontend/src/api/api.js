@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = "https://mosfet-cv-simulator-production.up.railway.app"
+const API_URL = "https://mosfet-cv-simulator-production.up.railway.app";
 
 export const generateCVCurve = async (params) => {
     try {
