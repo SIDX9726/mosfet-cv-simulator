@@ -7,7 +7,19 @@ import pandas as pd
 import io
 
 app = FastAPI(title="MOSFET C-V Simulation API")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# IMPROVED CORS: Explicitly allowing your Vercel domain
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://mosfet-cv-simulator.vercel.app",
+        "http://localhost:5173",
+        "*"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class MoscapInput(BaseModel):
     t_ox_nm: float = 30.0
@@ -15,7 +27,7 @@ class MoscapInput(BaseModel):
     gate_work_function: float = 4.5
     eps_ox_relative: float = 3.9
     substrate_type: str = "p-type Silicon"
-    smearing_factor: float = 2.5   # <--- NEW
+    smearing_factor: float = 2.5
     v_start: float = -3.0
     v_end: float = 3.0
     v_step: float = 0.05
@@ -25,12 +37,13 @@ class AnalysisInput(BaseModel):
     n_a: float
     gate_work_function: float
     eps_ox_relative: float
-    substrate_type: str                  # <--- ADDED SUBSTRATE TYPE
+    substrate_type: str
     exp_voltage: list[float]
     exp_cap: list[float]
 
 @app.get("/")
-def read_root(): return {"message": "Backend Ready!"}
+def read_root(): 
+    return {"message": "Backend Ready!"}
 
 @app.post("/calculate-parameters")
 def calculate_params(params: MoscapInput):
@@ -40,59 +53,41 @@ def calculate_params(params: MoscapInput):
 @app.post("/generate-cv")
 def generate_cv(params: MoscapInput):
     engine = MoscapEngine(params.t_ox_nm, params.n_a, params.gate_work_function, params.eps_ox_relative, params.substrate_type)
-    return {"status": "success", "data": engine.generate_cv_curve(params.v_start, params.v_end, params.v_step)}
+    # Merged logic: Uses smearing_factor correctly
+    curve_data = engine.generate_cv_curve(params.v_start, params.v_end, params.v_step, params.smearing_factor)
+    return {"status": "success", "data": curve_data}
 
 @app.post("/analyze-data")
 def analyze_data(payload: AnalysisInput):
     engine = MoscapEngine(payload.t_ox_nm, payload.n_a, payload.gate_work_function, payload.eps_ox_relative, payload.substrate_type)
-    return {"status": "success", "data": engine.analyze_measurement(payload.exp_voltage, payload.exp_cap)}
+    results = engine.analyze_measurement(payload.exp_voltage, payload.exp_cap)
+    return {"status": "success", "data": results}
 
-# KEEP YOUR UPLOAD ENDPOINT AT THE BOTTOM!
-# ... (Keep your existing @app.post("/upload-data") exactly as it is at the bottom)
-
-# NEW ENDPOINT: Generates the full curve arrays
-@app.post("/generate-cv")
-def generate_cv(params: MoscapInput):
-    engine = MoscapEngine(params.t_ox_nm, params.n_a, params.gate_work_function, params.eps_ox_relative, params.substrate_type)
-    
-    # NEW: Pass the smearing factor to the generator
-    curve_data = engine.generate_cv_curve(params.v_start, params.v_end, params.v_step, params.smearing_factor)
-    return {"status": "success", "data": curve_data}
-
-# NEW ENDPOINT: Parse uploaded experimental CSV data
 @app.post("/upload-data")
 async def upload_experimental_data(file: UploadFile = File(...)):
     try:
-        # Read the file content
         contents = await file.read()
-        
-        # Read CSV using pandas (assuming columns are like "Voltage", "Capacitance")
-        # We decode it to string so pandas can read it from memory
         df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
         
-        # Standardize column names (lowercase them to be safe)
-        df.columns =[col.strip().lower() for col in df.columns]
+        # Standardize column names
+        df.columns = [col.strip().lower() for col in df.columns]
         
-        # Look for columns that contain 'v' (voltage) and 'c' (capacitance)
         v_col = next(col for col in df.columns if 'v' in col)
         c_col = next(col for col in df.columns if 'c' in col)
-        
-        # Extract as lists
-        voltages = df[v_col].tolist()
-        capacitances = df[c_col].tolist()
         
         return {
             "status": "success",
             "data": {
-                "voltage": voltages,
-                "measured_cap": capacitances
+                "voltage": df[v_col].tolist(),
+                "measured_cap": df[c_col].tolist()
             }
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
-    
-@app.post("/analyze-data")
-def analyze_data(payload: AnalysisInput):
-    engine = MoscapEngine(payload.t_ox_nm, payload.n_a, payload.gate_work_function)
-    results = engine.analyze_measurement(payload.exp_voltage, payload.exp_cap)
-    return {"status": "success", "data": results}
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    # Use the PORT environment variable provided by Railway
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
