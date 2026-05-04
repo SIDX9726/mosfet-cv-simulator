@@ -11,11 +11,7 @@ app = FastAPI(title="MOSFET C-V Simulation API")
 # IMPROVED CORS: Explicitly allowing your Vercel domain
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://mosfet-cv-simulator.vercel.app",
-        "http://localhost:5173",
-        "*"
-    ],
+    allow_origins=["*"],  # Permits all domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
